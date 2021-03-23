@@ -14,11 +14,11 @@ const userSchema = new Schema({
     type: String,
     default: ''
   },
-  NiceHashApi: {
+  niceHashApi: {
     type: Schema.Types.ObjectId,
     ref: 'NiceHashApi'
   },
-  NiceHashData:{
+  niceHashData:{
     type: Schema.Types.ObjectId,
     ref: 'NiceHashData'
   },

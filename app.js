@@ -1,13 +1,19 @@
-const path = require('path');
-
 const express = require('express');
+const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 
+const jwt = require('jsonwebtoken');
 const io = require('./utils/socket');
 const statusRoutes = require('./routes/status');
-const jobs = require('./jobs/jobs')
+const authRoutes = require('./routes/auth');
+const jobs = require('./jobs/jobs');
+const User = require('./models/users');
+const NiceHashApi = require('./models/NiceHash/NiceHashApi');
+
+const MONGODB_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.gx6v9.mongodb.net/${process.env.MONGO_DB_NAME}?retryWrites=true&w=majority`;
 
 const app = express();
+app.use(bodyParser.json());
 
 app.use((req, res, next) => {
 	res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,26 +26,38 @@ app.use((req, res, next) => {
 });
 
 app.use('/status', statusRoutes);
+app.use('/auth', authRoutes);
 
-const User = require('./models/users');
-const NiceHashApi = require('./models/NiceHash/NiceHashApi');
-const utils = require('./utils/utils');
+app.use((error, req, res, next) => {
+	console.log(error);
+	res
+		.status(error.statusCode)
+		.json({ message: error.message, data: error.data });
+});
+
+const { isAuthWebtoken } = require('./middleware/is-auth');
 
 mongoose
-	.connect(
-		`mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.gx6v9.mongodb.net/${process.env.MONGO_DB_NAME}?retryWrites=true&w=majority`
-	)
+	.connect(MONGODB_URI)
 	.then((result) => {
 		const server = app.listen(process.env.PORT || 8080);
-		io.init(server).on('connection', (socket) => {
-			User.find({email: 'test@test.com'}).then(users => {
-				user =users[0];
-				if(user){
-					console.log(user);
-					user.webSocketId= socket.id;
-					return user.save();
-				}
-			})
+		const nsp = io.init(server);
+
+		nsp.use(isAuthWebtoken);
+
+		nsp.on('connection', (socket) => {
+			const id = socket.userId;
+			User.findById(id)
+				.then((user) => {
+					if (user) {
+						user.webSocketId = socket.id;
+						return user.save();
+					}
+					throw new Error('user not found');
+				})
+				.catch((err) => {
+					console.log(err);
+				});
 		});
 	})
 	.catch((err) => {
@@ -47,28 +65,3 @@ mongoose
 	});
 
 jobs.startJobs();
-
-
-
-///func for testing stuff
-setInterval(async () => {
-	const userCount = await User.find().countDocuments();
-	if (!userCount) {
-		console.log('creating new user');
-		const user = new User({
-			email: 'test@test.com',
-			password: '123456',
-		});
-		const newUser = await user.save();
-		const privateKey = utils.keyEncrypt(newUser.email, process.env.NICEHASH_PRIVATE);
-		niceHashApi = new NiceHashApi({
-			publicKey: process.env.NICEHASH_PUBLIC,
-			privateKey: privateKey,
-			organizationId: process.env.NICEHASH_ORG_ID,
-			owner: newUser._id
-		})
-		const newNiceHashApi = await niceHashApi.save(); 
-		newUser.NiceHashApi = newNiceHashApi;
-		await newUser.save();
-	}
-}, 1000);

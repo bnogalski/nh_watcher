@@ -63,19 +63,9 @@ class Api {
 		// return data;
 	};
 
-	createNonce = () => {
-		var s = '',
-			length = 32;
-		do {
-			s += Math.random().toString(36).substr(2);
-		} while (s.length < length);
-		s = s.substr(0, length);
-		return s;
-	};
-
 	requestPrivate = async (
 		endpoint,
-		{ publicKey, privateKey, organizationId = '', method, query, body } = {}
+		{ publicKey, privateKey, organizationId = '', method, query, body }= {}
 	) => {
 		if (this.timeDiff === null) {
 			const requestData = await this.requestPublic('/api/v2/time ');
@@ -98,6 +88,7 @@ class Api {
 			{ method, endpoint, query, body }
 		);
 
+		const error = '';
 		try {
 			const resp = await axios({
 				method: method,
@@ -111,28 +102,37 @@ class Api {
 					'X-User-Lang': 'en',
 					'X-Organization-Id': organizationId,
 					'X-Auth': authHeader,
+					'Content-Type': 'application/json'
 				},
 			});
 			return resp;
 		} catch (error) {
 			if (error.response) {
-				console.log(
-					'API responded with error Status Code:',
-					error.response.status
-				);
-				console.log('Error Data: ', error.response.data);
+				// console.log(
+				// 	'API responded with error Status Code:',
+				// 	error.response.status
+				// );
+				// console.log('Error Data: ', error.response.data.errors);
+				// throw new Error(error.response.data);
+				const errObject = {status: error.response.status, statusText: error.response.statusText};
+				throw errObject;
 			} else if (error.request) {
-				console.log('API did not respond!!');
-				console.log(error.request);
+				// console.log('API did not respond!!');
+				// console.log(error.request);
+
+				const errObject = {status: error.status, statusText: error.statusText};
+				throw errObject;
 			} else {
 				// Something happened in setting up the request that triggered an Error
-				console.log('Unhandled Error', error.message);
+				// console.log('Unhandled Error', error.message);
+				throw {status: 500, statusText: 'Unhandled error'};
 			}
 		}
 	};
 }
 
 axios.interceptors.request.use((request) => {
+	// console.log(request);
 	return request;
 });
 

@@ -20,3 +20,4 @@ exports.keyDecrypt = async (salt, encryptedMessage) => {
 
   return promise;
 };
+
